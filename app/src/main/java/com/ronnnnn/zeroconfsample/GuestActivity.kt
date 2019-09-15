@@ -14,7 +14,7 @@ import com.ronnnnn.zeroconfsample.databinding.ActivityGuestBinding
 
 class GuestActivity : AppCompatActivity() {
 
-    private var isServiceDiscovered: Boolean = false
+    private var isServiceDiscoveryStarted: Boolean = false
 
     private val nsdManager: NsdManager by lazy {
         getSystemService(Context.NSD_SERVICE) as? NsdManager
@@ -26,51 +26,62 @@ class GuestActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityGuestBinding
 
-    private val nsdServiceInfoLiveData: MutableLiveData<NsdServiceInfo> = MutableLiveData()
-    private val serviceList: MutableList<NsdServiceInfo> = mutableListOf()
+    private val serviceListLiveData: MutableLiveData<List<NsdServiceInfo>> =
+        MutableLiveData()
 
     private val discoveryListener: NsdManager.DiscoveryListener =
         object : NsdManager.DiscoveryListener {
-            override fun onServiceFound(serviceInfo: NsdServiceInfo?) {
-                serviceInfo ?: return
-                nsdServiceInfoLiveData.postValue(serviceInfo)
-            }
-
-            override fun onStopDiscoveryFailed(serviceType: String?, errorCode: Int) {
-                "Stop service discovery failed".showAsLog()
+            override fun onDiscoveryStarted(serviceType: String?) {
+                "Start service discovery".showAsLog()
+                isServiceDiscoveryStarted = true
             }
 
             override fun onStartDiscoveryFailed(serviceType: String?, errorCode: Int) {
                 "Start service discovery failed".showAsLog()
             }
 
-            override fun onDiscoveryStarted(serviceType: String?) {
-                "Start service discovery".showAsLog()
-                isServiceDiscovered = true
-            }
-
             override fun onDiscoveryStopped(serviceType: String?) {
                 "Stop service discovery".showAsLog()
-                isServiceDiscovered = false
+                isServiceDiscoveryStarted = false
+            }
+
+            override fun onStopDiscoveryFailed(serviceType: String?, errorCode: Int) {
+                "Stop service discovery failed".showAsLog()
+            }
+
+            override fun onServiceFound(serviceInfo: NsdServiceInfo?) {
+                serviceInfo ?: return
+                val serviceList = (serviceListLiveData.value ?: emptyList()).toMutableList()
+                val service = serviceList.find { it.serviceType == serviceInfo.serviceType }
+                if (service == null) {
+                    serviceList.add(serviceInfo)
+                    serviceListLiveData.postValue(serviceList)
+                }
             }
 
             override fun onServiceLost(serviceInfo: NsdServiceInfo?) {
-                "Lost service".showAsLog()
+                serviceInfo ?: return
+                val serviceList = (serviceListLiveData.value ?: emptyList()).toMutableList()
+                val index = serviceList.indexOfFirst { it.serviceType == serviceInfo.serviceType }
+                if (index != -1) {
+                    serviceList.removeAt(index)
+                    serviceListLiveData.postValue(serviceList)
+                }
             }
         }
 
     private val resolveListener: NsdManager.ResolveListener =
         object : NsdManager.ResolveListener {
+            override fun onServiceResolved(serviceInfo: NsdServiceInfo?) {
+                "Resolve service".showAsLog()
+                serviceInfo?.toString()?.showAsLog()
+            }
+
             override fun onResolveFailed(
                 serviceInfo: NsdServiceInfo?,
                 errorCode: Int
             ) {
                 "Resolve service failed: $errorCode".showAsLog()
-            }
-
-            override fun onServiceResolved(serviceInfo: NsdServiceInfo?) {
-                "Resolve service".showAsLog()
-                serviceInfo?.toString()?.showAsLog()
             }
         }
 
@@ -83,6 +94,7 @@ class GuestActivity : AppCompatActivity() {
             serviceRecyclerView.adapter = serviceRecyclerAdapter.apply {
                 listener = object : ServiceRecyclerAdapter.OnItemClickListener {
                     override fun onItemClicked(position: Int) {
+                        val serviceList = serviceListLiveData.value ?: return
                         resolveService(serviceList[position])
                     }
                 }
@@ -90,10 +102,8 @@ class GuestActivity : AppCompatActivity() {
             serviceRecyclerView.layoutManager = LinearLayoutManager(this@GuestActivity)
         }
 
-        nsdServiceInfoLiveData.observe(this, Observer { service ->
-            serviceList.add(service)
-            serviceRecyclerAdapter.itemList = serviceList.map { it.toString() }.toList()
-            serviceRecyclerAdapter.notifyItemRangeInserted(serviceList.size - 1, 1)
+        serviceListLiveData.observe(this, Observer { serviceList ->
+            serviceRecyclerAdapter.submitList(serviceList.map { it.toString() }.toList())
         })
 
         discoverServices()
@@ -101,7 +111,7 @@ class GuestActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isServiceDiscovered) nsdManager.stopServiceDiscovery(discoveryListener)
+        if (isServiceDiscoveryStarted) nsdManager.stopServiceDiscovery(discoveryListener)
     }
 
     private fun discoverServices() {
@@ -121,6 +131,6 @@ class GuestActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val SEARCH_SERVICE_TYPE = "_ronnnnn._tcp."
+        private const val SEARCH_SERVICE_TYPE = "_ronnnnn._tcp"
     }
 }

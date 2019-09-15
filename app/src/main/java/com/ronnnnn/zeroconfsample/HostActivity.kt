@@ -22,8 +22,13 @@ class HostActivity : AppCompatActivity() {
 
     private val registrationListener: NsdManager.RegistrationListener =
         object : NsdManager.RegistrationListener {
-            override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {
-                "Service unregister fail".showAsLog()
+            override fun onServiceRegistered(serviceInfo: NsdServiceInfo?) {
+                "Service register".showAsLog()
+                isServiceRegistered = true
+            }
+
+            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {
+                "Service register failed".showAsLog()
             }
 
             override fun onServiceUnregistered(serviceInfo: NsdServiceInfo?) {
@@ -31,13 +36,8 @@ class HostActivity : AppCompatActivity() {
                 isServiceRegistered = false
             }
 
-            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {
-                "Service register failed".showAsLog()
-            }
-
-            override fun onServiceRegistered(serviceInfo: NsdServiceInfo?) {
-                "Service register".showAsLog()
-                isServiceRegistered = true
+            override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) {
+                "Service unregister fail".showAsLog()
             }
         }
 
@@ -76,7 +76,7 @@ class HostActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val HOST_SERVICE_TYPE = "_ronnnnn._tcp."
+        private const val HOST_SERVICE_TYPE = "_ronnnnn._tcp"
         private val HOST_SERVICE_NAME = Build.MODEL
     }
 }
